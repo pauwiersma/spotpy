@@ -546,6 +546,10 @@ class _algorithm(object):
                 model_result = que.get()
 
         else:
+            #Added by Pau
+            if id ==0:
+                all_params *= 0 
+            #
             model_result = self.setup.simulation(self.partype(*all_params))
 
         return id, params, model_result

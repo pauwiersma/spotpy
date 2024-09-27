@@ -84,6 +84,7 @@ class rope(_algorithm):
         percentage_first_run=0.10,
         percentage_following_runs=0.10,
         NDIR=None,
+        contains_list_params = False
     ):
         """
         Samples from the ROPE algorithm.
@@ -134,8 +135,14 @@ class rope(_algorithm):
 
         starttime = time.time()
         intervaltime = starttime
-        parset = self.parameter()
-        self.min_bound, self.max_bound = parset["minbound"], parset["maxbound"]
+        first_parset = self.parameter()
+        self.min_bound, self.max_bound = first_parset["minbound"], first_parset["maxbound"]
+        
+        #Create N parametersets to fill in later
+        if contains_list_params:
+            first_matrix = np.empty((first_run, len(self.min_bound)))
+            for i in range(first_run):
+                first_matrix[i] = self.parameter()['random']
 
         # Init ROPE with one subset
         likes = []
@@ -150,9 +157,25 @@ class rope(_algorithm):
             segmentMin = i * segment
             pointInSegment = segmentMin + (random.random() * segment)
             parset = pointInSegment * (self.max_bound - self.min_bound) + self.min_bound
+            
+            # if contains_list_params:
+            #     for j in range(matrix.shape[1]):
+            #         if (self.min_bound[j] ==0) & (self.max_bound[j] ==0):
+            #             parset[j] = first_matrix[i,j]
             matrix[i] = parset
+            
+        isconstant = []
         for i in range(len(self.min_bound)):
-            random.shuffle(matrix[:, i])
+            #Fill constant parameters
+            if contains_list_params:
+                if (self.min_bound[i] ==0) & (self.max_bound[i] ==0):
+                    matrix[:,i] = first_matrix[:,i]
+                    isconstant.append(True)
+                else:
+                    random.shuffle(matrix[:,i])
+                    isconstant.append(False)
+            else:
+                random.shuffle(matrix[:, i])        
 
         # A generator that produces the parameters
         param_generator = ((rep, matrix[rep]) for rep in range(int(first_run) - 1))
@@ -176,6 +199,7 @@ class rope(_algorithm):
                 intervaltime = time.time()
 
         for subset in range(subsets - 1):
+            print(f'We are in subset {subset} now')
             if subset == 0:
                 best_pars = self.get_best_runs(
                     likes, pars, repetitions_following_runs, percentage_first_run
@@ -186,12 +210,28 @@ class rope(_algorithm):
                 )
             valid = False
             trials = 0
+            print('created best_pars of size', len(best_pars[0]))
+
             while valid is False and trials < 10 and repetitions_following_runs > 1:
-                new_pars = self.programm_depth(best_pars, repetitions_following_runs)
-                if len(new_pars) == repetitions_following_runs:
-                    valid = True
+                if contains_list_params ==True:
+                    new_pars = self.programm_depth([bp[~np.array(isconstant) ]for bp in best_pars],
+                                                   repetitions_following_runs)
+                    constant_pars = [list(self.parameter()['random'][np.array(isconstant)]) for i in range(len(new_pars))]
+                    new_pars = np.hstack([np.array(constant_pars),new_pars])
+                    
+                    if len(new_pars) == repetitions_following_runs:
+                        valid = True
+                    else:
+                        trials += 1
+                    print('created new_pars of size', len(new_pars))
+
                 else:
-                    trials += 1
+                    new_pars = self.programm_depth(best_pars, repetitions_following_runs)
+                    
+                    if len(new_pars) == repetitions_following_runs:
+                        valid = True
+                    else:
+                        trials += 1
             pars = []
             likes = []
             if int(repetitions_following_runs) > len(new_pars):
@@ -234,6 +274,10 @@ class rope(_algorithm):
         X = np.array(pars)
 
         N, NP = X.shape
+        if N<NP:
+            print('The number of parameter sets to generate is smaller than the number of parameters')
+            print('We will stop the program now')
+            return
         text = str(N) + " input vectors with " + str(NP) + " parameters"
         print(text)
 
@@ -259,11 +303,14 @@ class rope(_algorithm):
         CL = np.zeros(NP)
         TL = np.zeros(shape=(LLEN, NP))
 
+        whileloop0 = 0
         while IPOS < NPOSI:
+            whileloop0 += 1
+            print("whileloop0",whileloop0)
             for IM in range(LLEN):  # LLEN=1000 Random Vectors of dim NP
                 for j in range(NP):
                     DRAND = np.random.rand()
-                    TL[IM, j] = XMIN[j] + DRAND * (XMAX[j] - XMIN[j])
+                    TL[IM, j] = XMIN[j] + DRAND * (XMAX[j] - XMIN[j]) # Random vector of each parameters within their current min max range
             LNDEP = self.fHDEPTHAB(N, NP, X, TL, EPS, LLEN)
             for L in range(LLEN):
                 ITRY = ITRY + 1
@@ -282,7 +329,7 @@ class rope(_algorithm):
 
     def fDEP(self, N, NP, X, TL, EPS, LLEN):
         LNDEP = np.array([N for i in range(N)])
-        for NRAN in range(int(self.NDIR)):
+        for NRAN in range(int(self.NDIR)): #repetitions following run
 
             #       Random sample of size NP
             JSAMP = np.zeros(N)
@@ -294,7 +341,10 @@ class rope(_algorithm):
 
             for index in range(NP - 1):
                 dirac = 0
+                whileloop1 = 0
                 while dirac == 0:
+                    whileloop1 += 1
+                    print("whileloop1",whileloop1)
                     dirac = 1
                     L = np.random.randint(1, N + 1)
                     if L > N:
@@ -302,6 +352,11 @@ class rope(_algorithm):
                     for j in range(NSAMP):
                         if L == JSAMP[j]:
                             dirac = 0
+                    if whileloop1 > 1000:
+                        print("L",L)
+                        print("JSAMP",JSAMP)
+                        print("NSAMP",NSAMP)
+
                 NSAMP = NSAMP + 1
                 JSAMP[index + 1] = L
 
@@ -353,7 +408,10 @@ class rope(_algorithm):
                         N1 = 1
                         N2 = N
                         dirac = 0
+                        whileloop2 = 0
                         while dirac == 0:
+                            whileloop2 += 1
+                            print("whileloop2",whileloop2)
                             dirac = 1
                             N3 = (N1 + N2) / 2.0
                             if HELP[int(N3)] < EKT:
