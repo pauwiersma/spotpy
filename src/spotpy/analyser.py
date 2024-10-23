@@ -724,7 +724,7 @@ def plot_parametertrace_algorithms(
     fig.savefig(fig_name, bbox_inches="tight")
 
 
-def plot_parametertrace(results, parameternames=None, fig_name="Parameter_trace.png"):
+def plot_parametertrace(results, parameternames=None,figsize = (16,9),labelpad = None, fig_name="Parameter_trace.png"):
     """
     Get a plot with all values of a given parameter in your result array.
     The plot will be saved as a .png file.
@@ -740,7 +740,7 @@ def plot_parametertrace(results, parameternames=None, fig_name="Parameter_trace.
     """
     import matplotlib.pyplot as plt
 
-    fig = plt.figure(figsize=(16, 9))
+    fig = plt.figure(figsize=figsize)
     if not parameternames:
         parameternames = get_parameternames(results)
     names = ""
@@ -749,7 +749,7 @@ def plot_parametertrace(results, parameternames=None, fig_name="Parameter_trace.
         ax = plt.subplot(len(parameternames), 1, i)
         ax.plot(results["par" + name], label=name)
         names += name + "_"
-        ax.set_ylabel(name)
+        ax.set_ylabel(name,rotation = 0,labelpad =labelpad)
         if i == len(parameternames):
             ax.set_xlabel("Repetitions")
         if i == 1:
